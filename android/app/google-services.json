@@ -1,0 +1,81 @@
+{
+  "project_info": {
+    "project_number": "447299555397",
+    "firebase_url": "https://dpss-public-api.firebaseio.com",
+    "project_id": "dpss-public-api",
+    "storage_bucket": "dpss-public-api.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:447299555397:android:37365b4aabc8bbad",
+        "android_client_info": {
+          "package_name": "edu.umich.dpss"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "447299555397-uouukf7a10i9gf5vse3u8f0f2e2gqf71.apps.googleusercontent.com",
+          "client_type": 3
+        },
+        {
+          "client_id": "447299555397-uouukf7a10i9gf5vse3u8f0f2e2gqf71.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjGhbpJLtTq0WAh15WpBUjGadsowSAxEM"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:447299555397:android:bb8681a6ec074035",
+        "android_client_info": {
+          "package_name": "edu.umich.dpss.test"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "447299555397-uouukf7a10i9gf5vse3u8f0f2e2gqf71.apps.googleusercontent.com",
+          "client_type": 3
+        },
+        {
+          "client_id": "447299555397-uouukf7a10i9gf5vse3u8f0f2e2gqf71.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBjGhbpJLtTq0WAh15WpBUjGadsowSAxEM"
+        }
+      ],
+      "services": {
+        "analytics_service": {
+          "status": 1
+        },
+        "appinvite_service": {
+          "status": 1,
+          "other_platform_oauth_client": []
+        },
+        "ads_service": {
+          "status": 2
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
