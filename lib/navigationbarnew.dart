@@ -15,10 +15,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'theme.dart' as app_theme;
-
 import 'package:torch_light/torch_light.dart';
-
-import 'dart:io';
 import 'contact_us.dart';
 
 class NavigationBarNew extends StatefulWidget {

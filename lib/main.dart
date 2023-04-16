@@ -19,28 +19,37 @@ import 'package:dpss_public_app/story_screen.dart';
 import 'package:dpss_public_app/contact_screen.dart';
 import 'package:dpss_public_app/safety_tips.dart';
 import 'package:dpss_public_app/transportation.dart';
-import 'dart:io';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'theme.dart' as theme;
 import 'posting_current.dart';
 import 'navigationbarnew.dart';
+import 'firebase_options.dart';
 
 String targetOs = "";
 String url = "";
 String token = "";
 
-bool isFlutterLocalNotificationsInitialized = false;
-
 //app entry point
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.android,
+  );
+
+  await FirebaseMessaging.instance.requestPermission();
   runApp(const DPSSApp());
 }
 
 class DPSSApp extends StatelessWidget {
   const DPSSApp({super.key});
+
+  static FirebaseAnalytics analytics = FirebaseAnalytics.instance;
+  static FirebaseAnalyticsObserver observer =
+      FirebaseAnalyticsObserver(analytics: analytics);
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +59,11 @@ class DPSSApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: theme.CompanyColors.blue,
       ),
+      navigatorObservers: <NavigatorObserver>[observer],
       home: MainPage(
         title: 'UM Public Safety',
+        analytics: analytics,
+        observer: observer,
         key: UniqueKey(),
       ),
     );
@@ -60,15 +72,23 @@ class DPSSApp extends StatelessWidget {
 
 class MainPage extends StatefulWidget {
   @override
-  const MainPage({required Key key, required this.title}) : super(key: key);
+  const MainPage({
+    required Key key,
+    required this.title,
+    required this.analytics,
+    required this.observer,
+  }) : super(key: key);
   final String title;
+  final FirebaseAnalytics analytics;
+  final FirebaseAnalyticsObserver observer;
   @override
   MainPageState createState() => MainPageState();
 }
 
 class MainPageState extends State<MainPage> {
+  late final FirebaseMessaging _messaging;
 
-  late final FirebaseMessaging _firebaseMessaging;
+
 
   bool pushCrimeTopic = false;
   bool pushNewsTopic = false;
@@ -81,8 +101,6 @@ class MainPageState extends State<MainPage> {
       TextEditingController(); //used to retrieve settings
   final _phoneController = TextEditingController(); //used to retrieve settings
   final _emailController = TextEditingController();
-
-
 
   @override
   void dispose() {
@@ -528,12 +546,12 @@ class MainPageState extends State<MainPage> {
     await prefs.setBool('crimeTopicSubscribed', value);
 
     if (value) {
-      _firebaseMessaging.subscribeToTopic('crime-alert');
+      //_firebaseMessaging.subscribeToTopic('crime-alert');
       if (kDebugMode) {
         print('Subscribe crime topic...');
       }
     } else {
-      _firebaseMessaging.unsubscribeFromTopic('crime-alert');
+      //_firebaseMessaging.unsubscribeFromTopic('crime-alert');
       if (kDebugMode) {
         print('Unsubscribe crime topic...');
       }
@@ -545,12 +563,12 @@ class MainPageState extends State<MainPage> {
     await prefs.setBool('newsTopicSubscribed', value);
 
     if (value) {
-      _firebaseMessaging.subscribeToTopic('general-news');
+      //_firebaseMessaging.subscribeToTopic('general-news');
       if (kDebugMode) {
         print('Subscribe news topic...');
       }
     } else {
-      _firebaseMessaging.unsubscribeFromTopic('general-news');
+      //_firebaseMessaging.unsubscribeFromTopic('general-news');
       if (kDebugMode) {
         print('Unsubscribe news topic...');
       }
@@ -562,15 +580,25 @@ class MainPageState extends State<MainPage> {
     await prefs.setBool('testTopicSubscribed', value);
 
     if (value) {
-      _firebaseMessaging.subscribeToTopic('general-test');
-      if (kDebugMode) {
-        print('Subscribe test topic...');
-      }
+      _messaging.subscribeToTopic('development-test');
+      await widget.analytics.logEvent(
+        name: 'push_test_topic',
+        parameters: <String, dynamic>{
+          'subscribed': 'yes',
+        },
+      );
+      print('Subscribe test topic...');
+
     } else {
-      _firebaseMessaging.unsubscribeFromTopic('general-test');
-      if (kDebugMode) {
-        print('Unsubscribe test topic...');
-      }
+      _messaging.unsubscribeFromTopic('development-test');
+      await widget.analytics.logEvent(
+        name: 'push_test_topic',
+        parameters: <String, dynamic>{
+          'subscribed': 'no',
+        },
+      );
+
+      print('Unsubscribe test topic...');
     }
   }
 
@@ -708,23 +736,35 @@ class MainPageState extends State<MainPage> {
   void initState() {
     super.initState();
 
-    //determine platform for parsing push notifications
-    if (Platform.isIOS) {
-      targetOs = "IOS";
-    } else if (Platform.isAndroid) {
-      targetOs = "ANDROID";
-    } else {
-      targetOs = "ANDROID";
-    }
+    _messaging = FirebaseMessaging.instance;
+
+
 
     //firebase messaging
     if (kDebugMode) {
       print('[initState] waiting for token...');
     }
+    _messaging.getToken().then((value) {
+      print(value);
+    });
+
+
+    FirebaseMessaging.onMessage.listen((RemoteMessage event) {
+      print("message received");
+      print(event);
+
+      print(event.notification);
+
+      print(event.notification!.body);
 
 
 
 
+     // _showItemDialog(event.notification);
+    });
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      print('Message clicked!');
+    });
 
     /*firebaseMessaging .configure(
       onMessage: (Map<String, dynamic> message) async {

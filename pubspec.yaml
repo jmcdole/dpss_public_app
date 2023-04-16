@@ -1,5 +1,5 @@
 name: dpss_public_app
-description: A new Flutter project.
+description: UM DPSS Public App
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -38,14 +38,12 @@ dependencies:
 
   # new
   plugin_platform_interface: ^2.1.0
-  firebase_core_platform_interface: 4.6.0
+
 
   firebase_core: ^2.9.0
-  #firebase_core: 0.5.0
-  #firebase_database: 4.0.0
   firebase_database: ^10.1.0
-  #firebase_messaging: 7.0.0
   firebase_messaging: ^14.4.0
+  firebase_analytics: ^10.2.0
 
   url_launcher: ^6.1.10
   url_launcher_platform_interface: ^2.1.2
@@ -62,13 +60,12 @@ dependencies:
   dson: 0.16.0                 #no native code
   uuid: 3.0.7                 #no native code
 
-  torch_light: ^1.0.0
 
   #The plugins `flutter_webview_plugin, geocoder, lamp, location` use a deprecated version of the Android embedding.
   webview_flutter: ^3.0.0
   location: 4.4.0
   geocoding: ^2.1.0
-
+  torch_light: ^1.0.0
 
 
 dev_dependencies:
