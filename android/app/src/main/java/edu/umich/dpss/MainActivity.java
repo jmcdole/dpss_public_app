@@ -1,4 +1,4 @@
-package edu.umich.dpss.dpss_public_app;
+package edu.umich.dpss;
 
 import io.flutter.embedding.android.FlutterActivity;
 
