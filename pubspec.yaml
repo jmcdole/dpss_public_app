@@ -63,9 +63,10 @@ dependencies:
 
   #The plugins `flutter_webview_plugin, geocoder, lamp, location` use a deprecated version of the Android embedding.
   webview_flutter: ^3.0.0
-  location: 4.4.0
-  geocoding: ^2.1.0
   torch_light: ^1.0.0
+
+  geolocator: ^9.0.2
+  geocoding: ^2.1.0
 
 
 dev_dependencies:

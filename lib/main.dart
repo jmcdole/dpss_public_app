@@ -24,6 +24,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'LocationPage.dart';
 import 'theme.dart' as theme;
 import 'posting_current.dart';
 import 'navigationbarnew.dart';
@@ -87,8 +88,6 @@ class MainPage extends StatefulWidget {
 
 class MainPageState extends State<MainPage> {
   late final FirebaseMessaging _messaging;
-
-
 
   bool pushCrimeTopic = false;
   bool pushNewsTopic = false;
@@ -175,7 +174,22 @@ class MainPageState extends State<MainPage> {
                                 context,
                                 MaterialPageRoute(
                                     builder: (context) => ContactScreen(
-                                          token: token,
+                                          //token: token,
+                                          key: UniqueKey(), token: '',
+                                        )),
+                              );
+                            }),
+                        InkWell(
+                            child: Image.asset(
+                              'assets/clipboard-90.png',
+                            ),
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    //builder: (context) => ContactScreen(
+                                    builder: (context) => LocationPage(
+                                          //token: token,
                                           key: UniqueKey(),
                                         )),
                               );
@@ -588,7 +602,6 @@ class MainPageState extends State<MainPage> {
         },
       );
       print('Subscribe test topic...');
-
     } else {
       _messaging.unsubscribeFromTopic('development-test');
       await widget.analytics.logEvent(
@@ -738,8 +751,6 @@ class MainPageState extends State<MainPage> {
 
     _messaging = FirebaseMessaging.instance;
 
-
-
     //firebase messaging
     if (kDebugMode) {
       print('[initState] waiting for token...');
@@ -747,7 +758,6 @@ class MainPageState extends State<MainPage> {
     _messaging.getToken().then((value) {
       print(value);
     });
-
 
     FirebaseMessaging.onMessage.listen((RemoteMessage event) {
       print("message received");
@@ -757,10 +767,7 @@ class MainPageState extends State<MainPage> {
 
       print(event.notification!.body);
 
-
-
-
-     // _showItemDialog(event.notification);
+      // _showItemDialog(event.notification);
     });
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       print('Message clicked!');
