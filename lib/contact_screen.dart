@@ -96,11 +96,12 @@ class ContactScreenState extends State<ContactScreen> {
         .then((List<Placemark> placemarks) {
       Placemark place = placemarks[0];
       setState(() {
-        print('test!!!!!');
         _currentAddress =
-        '${place.street}, ${place.subLocality}, ${place.subAdministrativeArea}, ${place.postalCode}';
-        print(_currentAddress);
+        '${place.street}';
         _locationController.text = _currentAddress!;
+        _currentCity = '${place.subLocality}, ${place.subAdministrativeArea}, ${place.administrativeArea}, ${place.postalCode}';
+        _cityController.text = _currentCity!;
+
       });
     }).catchError((e) {
       debugPrint(e);

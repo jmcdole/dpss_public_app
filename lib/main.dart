@@ -13,7 +13,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:dpss_public_app/news_screen.dart';
 import 'package:dpss_public_app/story_screen.dart';
 import 'package:dpss_public_app/contact_screen.dart';
@@ -29,10 +28,86 @@ import 'theme.dart' as theme;
 import 'posting_current.dart';
 import 'navigationbarnew.dart';
 import 'firebase_options.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 String targetOs = "";
 String url = "";
 String token = "";
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // If you're going to use other Firebase services in the background, such as Firestore,
+  // make sure you call `initializeApp` before using other Firebase services.
+  await Firebase.initializeApp();
+
+  print("Handling a background message: ${message.messageId}");
+  await setupFlutterNotifications();
+  showFlutterNotification(message);
+}
+
+/// Create a [AndroidNotificationChannel] for heads up notifications
+late AndroidNotificationChannel channel;
+
+bool isFlutterLocalNotificationsInitialized = false;
+
+Future<void> setupFlutterNotifications() async {
+  if (isFlutterLocalNotificationsInitialized) {
+    return;
+  }
+  channel = const AndroidNotificationChannel(
+    'high_importance_channel', // id
+    'High Importance Notifications', // title
+    description:
+    'This channel is used for important notifications.', // description
+    importance: Importance.high,
+  );
+
+  flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+  /// Create an Android Notification Channel.
+  ///
+  /// We use this channel in the `AndroidManifest.xml` file to override the
+  /// default FCM channel to enable heads up notifications.
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+      AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
+  /// Update the iOS foreground notification presentation options to allow
+  /// heads up notifications.
+  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
+  isFlutterLocalNotificationsInitialized = true;
+}
+
+void showFlutterNotification(RemoteMessage message) {
+  RemoteNotification? notification = message.notification;
+  AndroidNotification? android = message.notification?.android;
+  if (notification != null && android != null && !kIsWeb) {
+    flutterLocalNotificationsPlugin.show(
+      notification.hashCode,
+      notification.title,
+      notification.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
+          // TODO add a proper drawable resource to android, for now using
+          //      one that already exists in example app.
+          icon: 'ic_stat_name',
+        ),
+      ),
+    );
+  }
+}
+
+/// Initialize the [FlutterLocalNotificationsPlugin] package.
+late FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin;
+
 
 //app entry point
 Future<void> main() async {
@@ -42,6 +117,7 @@ Future<void> main() async {
   );
 
   await FirebaseMessaging.instance.requestPermission();
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   runApp(const DPSSApp());
 }
 
@@ -179,21 +255,7 @@ class MainPageState extends State<MainPage> {
                                         )),
                               );
                             }),
-                        InkWell(
-                            child: Image.asset(
-                              'assets/clipboard-90.png',
-                            ),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    //builder: (context) => ContactScreen(
-                                    builder: (context) => LocationPage(
-                                          //token: token,
-                                          key: UniqueKey(),
-                                        )),
-                              );
-                            }),
+
                         const Padding(
                           padding: EdgeInsets.all(8.0),
                           child: Text('Report Online '),
@@ -560,12 +622,12 @@ class MainPageState extends State<MainPage> {
     await prefs.setBool('crimeTopicSubscribed', value);
 
     if (value) {
-      //_firebaseMessaging.subscribeToTopic('crime-alert');
+      _messaging.subscribeToTopic('crime-alert');
       if (kDebugMode) {
         print('Subscribe crime topic...');
       }
     } else {
-      //_firebaseMessaging.unsubscribeFromTopic('crime-alert');
+      _messaging.unsubscribeFromTopic('crime-alert');
       if (kDebugMode) {
         print('Unsubscribe crime topic...');
       }
@@ -577,12 +639,12 @@ class MainPageState extends State<MainPage> {
     await prefs.setBool('newsTopicSubscribed', value);
 
     if (value) {
-      //_firebaseMessaging.subscribeToTopic('general-news');
+      _messaging.subscribeToTopic('general-news');
       if (kDebugMode) {
         print('Subscribe news topic...');
       }
     } else {
-      //_firebaseMessaging.unsubscribeFromTopic('general-news');
+      _messaging.unsubscribeFromTopic('general-news');
       if (kDebugMode) {
         print('Unsubscribe news topic...');
       }
@@ -695,105 +757,80 @@ class MainPageState extends State<MainPage> {
     });
   }
 
-  void _showItemDialog(Map<String, dynamic> message) {
-    showDialog<bool>(
+
+
+  Future<void> _showAlertDialog(title, body) async {
+    return showDialog<void>(
       context: context,
-      builder: (_) => _buildDialog(context, message),
-    ).then((bool shouldNavigate) {
-      if (shouldNavigate == true) {
-        //_navigateToItemDetail(message);
-      }
-    } as FutureOr Function(bool? value));
-  }
+      barrierDismissible: false, // user must tap button!
+      builder: (BuildContext context) {
+        return AlertDialog( // <-- SEE HERE
+          title:  Text("$title"),
+          content: SingleChildScrollView(
+            child: ListBody(
+              children: <Widget>[
+                Text("$body"),
+              ],
+            ),
+          ),
+          actions: <Widget>[
 
-  Widget _buildDialog(BuildContext context, message) {
-    String title = "";
-    String content = "";
-
-    switch (targetOs) {
-      case "IOS":
-        {
-          title = message['aps']['alert']['title'];
-          content = message['aps']['alert']['body'];
-        }
-        break;
-
-      case "ANDROID":
-        {
-          if (message['notification']['title'] == null) {
-            title = message['data']['title'];
-            content = message['data']['body'];
-          } else if (message['notification']['title'] != null) {
-            title = message['notification']['title'];
-            content = message['notification']['body'];
-          }
-        }
-        break;
-    }
-
-    return CupertinoAlertDialog(
-      content: Text(content),
-      title: Text(title),
-      actions: <Widget>[
-        ElevatedButton(
-          child: const Text('CLOSE'),
-          onPressed: () {
-            Navigator.pop(context, false);
-          },
-        ),
-      ],
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
+
 
   @override
   void initState() {
     super.initState();
 
-    _messaging = FirebaseMessaging.instance;
+    String? initialMessage;
+    bool _resolved = false;
 
+    _messaging = FirebaseMessaging.instance;
     //firebase messaging
-    if (kDebugMode) {
-      print('[initState] waiting for token...');
-    }
     _messaging.getToken().then((value) {
-      print(value);
+      if (kDebugMode) {
+        print(value);
+      }
     });
+
+    FirebaseMessaging.instance.getInitialMessage().then(
+          (value) => setState(
+            () {
+          _resolved = true;
+          initialMessage = value?.data.toString();
+          print(initialMessage);
+        },
+      ),
+    );
 
     FirebaseMessaging.onMessage.listen((RemoteMessage event) {
-      print("message received");
+      print("message received:");
       print(event);
 
-      print(event.notification);
+      print("message title:");
+      print(event.notification!.title);
 
+      _showAlertDialog(event.notification!.title, event.notification!.body);
+
+      print("message body:");
       print(event.notification!.body);
 
-      // _showItemDialog(event.notification);
     });
+
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       print('Message clicked!');
     });
 
-    /*firebaseMessaging .configure(
-      onMessage: (Map<String, dynamic> message) async {
-        if (kDebugMode) {
-          print('on message: $message');
-        }
-        _showItemDialog(message);
-      },
-      onResume: (Map<String, dynamic> message) async {
-        if (kDebugMode) {
-          print('on resume: $message');
-        }
-        _showItemDialog(message);
-      },
-      onLaunch: (Map<String, dynamic> message) async {
-        if (kDebugMode) {
-          print('on launch: $message');
-        }
-        _showItemDialog(message);
-      },
-    );
-*/
 
     //load notification preferences
     _loadPushCrimeTopicSetting();
