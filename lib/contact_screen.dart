@@ -13,14 +13,16 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:location/location.dart';
+
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'message.dart';
 import 'navigationbarnew.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 
 class ContactScreen extends StatefulWidget {
   final String token;
@@ -28,7 +30,7 @@ class ContactScreen extends StatefulWidget {
       : super(key: key);
 
   @override
-  ContactScreenState createState() => ContactScreenState();
+  State<ContactScreen> createState() => ContactScreenState();
 }
 
 class ContactScreenState extends State<ContactScreen> {
@@ -37,15 +39,75 @@ class ContactScreenState extends State<ContactScreen> {
 
   String targetOs = "";
 
-  late Map<String, double> startLocation;
-  late Map<String, double> currentLocation;
+  //location services
+  String? _currentAddress;
+  String? _currentCity;
 
-  late StreamSubscription<Map<String, double>> locationSubscription;
+  Position? _currentPosition;
 
-  final Location _location = Location();
-  bool permission = false;
+  //check for permissions
+  Future<bool> _handleLocationPermission() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Location services are disabled. Please enable the services')));
+      return false;
+    }
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location permissions are denied')));
+        return false;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Location permissions are permanently denied, we cannot request permissions.')));
+      return false;
+    }
+    return true;
+  }
+
+  //get position
+  Future<void> _getCurrentPosition() async {
+    final hasPermission = await _handleLocationPermission();
+
+    if (!hasPermission) return;
+    await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high)
+        .then((Position position) {
+      setState(() => _currentPosition = position);
+      _getAddressFromLatLng(_currentPosition!);
+    }).catchError((e) {
+      debugPrint(e);
+    });
+  }
+
+  //get address
+  Future<void> _getAddressFromLatLng(Position position) async {
+    await placemarkFromCoordinates(
+        _currentPosition!.latitude, _currentPosition!.longitude)
+        .then((List<Placemark> placemarks) {
+      Placemark place = placemarks[0];
+      setState(() {
+        print('test!!!!!');
+        _currentAddress =
+        '${place.street}, ${place.subLocality}, ${place.subAdministrativeArea}, ${place.postalCode}';
+        print(_currentAddress);
+        _locationController.text = _currentAddress!;
+      });
+    }).catchError((e) {
+      debugPrint(e);
+    });
+  }
+
   String error = "";
-
   bool currentWidget = true;
 
   //set up firebase realtime database store
@@ -54,14 +116,14 @@ class ContactScreenState extends State<ContactScreen> {
 
   Message message = Message();
 
-  final firstNameController = TextEditingController();
-  final lastNameController = TextEditingController();
-  final phoneController = TextEditingController();
-  final emailController = TextEditingController();
-  final locationController = TextEditingController();
-  final cityController = TextEditingController();
-  final messageController = TextEditingController();
-  
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _locationController = TextEditingController();
+  final _cityController = TextEditingController();
+  final _messageController = TextEditingController();
+
   bool formWasEdited = false;
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -69,14 +131,14 @@ class ContactScreenState extends State<ContactScreen> {
   @override
   void dispose() {
     // Clean up the controller when the Widget is disposed
-    firstNameController.dispose();
-    lastNameController.dispose();
-    phoneController.dispose();
-    emailController.dispose();
-    locationController.dispose();
-    cityController.dispose();
-    messageController.dispose();
-    locationSubscription.cancel();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
+    _locationController.dispose();
+    _cityController.dispose();
+    _messageController.dispose();
+    //locationSubscription.cancel();
 
     super.dispose();
   }
@@ -91,71 +153,6 @@ class ContactScreenState extends State<ContactScreen> {
     loadEmailSetting();
     loadPhoneSetting();
 
-    if (kDebugMode) {
-      print(widget.token);
-    }
-
-    //set up location permissions
-    initPlatformState();
-
-    //start retrieving location
-    locationSubscription =
-        _location.onLocationChanged.listen((Map<String, double> result) {
-      //setState(() {
-      currentLocation = result;
-      //});
-    } as void Function(LocationData event)?) as StreamSubscription<Map<String, double>>;
-  }
-
-  // Platform messages are asynchronous, so we initialize in an async method.
-  initPlatformState() async {
-    Map<String, double>? location;
-    // Platform messages may fail, so we use a try/catch PlatformException.
-
-    try {
-      permission = (await _location.hasPermission()) as bool;
-      location = (await _location.getLocation()) as Map<String, double>?;
-      error = "";
-    } on PlatformException catch (e) {
-      if (e.code == 'PERMISSION_DENIED') {
-        error = 'Permission denied';
-      } else if (e.code == 'PERMISSION_DENIED_NEVER_ASK') {
-        error =
-            'Permission denied - please ask the user to enable it from the app settings';
-      }
-
-      location = null;
-    }
-
-    if (mounted) {
-      startLocation = location!;
-    }
-  }
-
-  getLocation() async {
-    if (kDebugMode) {
-      print('currentLocation: $currentLocation\n');
-    }
-    if (kDebugMode) {
-      print('startLocation: $startLocation\n');
-    }
-
-    //TODO FIXME
-    /*
-    final coordinates =
-        Coordinates(currentLocation["latitude"], currentLocation["longitude"]);
-    var addresses =
-        await Geocoder.local.findAddressesFromCoordinates(coordinates);
-    var first = addresses.first;
-    var address =
-        first.addressLine.substring(0, first.addressLine.indexOf(','));
-
-    locationController.text = address;
-    cityController.text =
-        "${first.locality}, ${first.adminArea}  ${first.postalCode}";
-
-
-     */
   }
 
   void _handleSubmitted() {
@@ -164,7 +161,7 @@ class ContactScreenState extends State<ContactScreen> {
       //TODO Check for replacement
       //autoValidate = true; // Start validating on every change.
 
-      showInSnackBar('Please fix the errors in red before submitting.');
+      //TODO  showInSnackBar('Please fix the errors in red before submitting.');
     } else {
       //determine platform for parsing push notifications
       if (Platform.isIOS) {
@@ -191,31 +188,38 @@ class ContactScreenState extends State<ContactScreen> {
       report.messageType = "ONLINE";
       report.messageSubType = "REPORT";
 
-      report.firstName = firstNameController.text;
-      report.lastName = lastNameController.text;
+      report.firstName = _firstNameController.text;
+      report.lastName = _lastNameController.text;
       report.middleName = "";
       report.pushToken = widget.token;
 
       report.location = "";
-      report.address = locationController.text;
-      report.city = cityController.text;
+      report.address = _locationController.text;
+      report.city = _cityController.text;
       report.state = "MI";
 
       report.floor = "";
       report.room = "";
 
-      report.phone = phoneController.text;
-      report.email = emailController.text;
-      report.comment = messageController.text;
+      report.phone = _phoneController.text;
+      report.email = _emailController.text;
+      report.comment = _messageController.text;
       report.status = "N";
 
       //if (currentLocation != null) {
-        report.yCoord = currentLocation["latitude"].toString() ?? " ";
-        report.xCoord = currentLocation["longitude"].toString() ?? " ";
-     // } else {
-       // report.yCoord = " ";
-       // report.xCoord = " ";
-     // }
+
+
+      //report.yCoord = currentLocation["latitude"].toString() ?? " ";
+      //report.xCoord = currentLocation["longitude"].toString() ?? " ";
+
+      //Text('LAT: ${_currentPosition?.latitude ?? ""}'),
+      //Text('LNG: ${_currentPosition?.longitude ?? ""}'),
+      //Text('ADDRESS: ${_currentAddress ?? ""}'),
+
+      // } else {
+      // report.yCoord = " ";
+      // report.xCoord = " ";
+      // }
 
       report.device = targetOs;
 
@@ -227,7 +231,7 @@ class ContactScreenState extends State<ContactScreen> {
       //send to firebase database
       var uuid = const Uuid().toString();
       database.child("inbound").child(uuid).set(report.toJson());
-      showInSnackBar('Your report has been sent to DPSS Dispatch Services.');
+      //TODO showInSnackBar('Your report has been sent to DPSS Dispatch Services.');
 
       //navigate back to main screen
       Future.delayed(const Duration(seconds: 3), () {
@@ -238,36 +242,31 @@ class ContactScreenState extends State<ContactScreen> {
     }
   }
 
-  void showInSnackBar(String value) {
-    //TODO  fixme
-    //_scaffoldKey.currentState.showSnackBar(SnackBar(content: Text(value)));
-  }
-
   void loadFirstNameSetting() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      firstNameController.text = (prefs.getString('firstName') ?? "");
+      _firstNameController.text = (prefs.getString('firstName') ?? "");
     });
   }
 
   void loadLastNameSetting() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      lastNameController.text = (prefs.getString('lastName') ?? "");
+      _lastNameController.text = (prefs.getString('lastName') ?? "");
     });
   }
 
   void loadPhoneSetting() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      phoneController.text = (prefs.getString('phone') ?? "");
+      _phoneController.text = (prefs.getString('phone') ?? "");
     });
   }
 
   void loadEmailSetting() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     setState(() {
-      emailController.text = (prefs.getString('email') ?? "");
+      _emailController.text = (prefs.getString('email') ?? "");
     });
   }
 
@@ -381,7 +380,7 @@ class ContactScreenState extends State<ContactScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0),
                   child: TextFormField(
-                    controller: firstNameController,
+                    controller: _firstNameController,
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
                       border: UnderlineInputBorder(),
@@ -397,7 +396,7 @@ class ContactScreenState extends State<ContactScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0),
                   child: TextFormField(
-                    controller: lastNameController,
+                    controller: _lastNameController,
                     textCapitalization: TextCapitalization.words,
                     decoration: const InputDecoration(
                       border: UnderlineInputBorder(),
@@ -413,7 +412,7 @@ class ContactScreenState extends State<ContactScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0),
                   child: TextFormField(
-                    controller: phoneController,
+                    controller: _phoneController,
                     decoration: const InputDecoration(
                       border: UnderlineInputBorder(),
                       icon: Icon(Icons.phone),
@@ -431,7 +430,7 @@ class ContactScreenState extends State<ContactScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8.0),
                   child: TextFormField(
-                    controller: emailController,
+                    controller: _emailController,
                     decoration: const InputDecoration(
                       border: UnderlineInputBorder(),
                       icon: Icon(Icons.email),
@@ -450,7 +449,7 @@ class ContactScreenState extends State<ContactScreen> {
                       alignment: const Alignment(1.0, 1.0),
                       children: <Widget>[
                         TextFormField(
-                          controller: locationController,
+                          controller: _locationController,
                           decoration: const InputDecoration(
                             border: UnderlineInputBorder(),
                             icon: Icon(Icons.home),
@@ -463,16 +462,14 @@ class ContactScreenState extends State<ContactScreen> {
                           //},
                         ),
                         ElevatedButton(
-                            onPressed: () {
-                              getLocation();
-                            },
+                            onPressed:_getCurrentPosition,
                             child: const Icon(Icons.gps_fixed))
                       ]),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(top: 4.0),
                   child: TextFormField(
-                    controller: cityController,
+                    controller: _cityController,
                     decoration: const InputDecoration(
                       border: UnderlineInputBorder(),
                       icon: Icon(null),
@@ -487,7 +484,7 @@ class ContactScreenState extends State<ContactScreen> {
                 ),
                 const SizedBox(height: 24.0),
                 TextFormField(
-                  controller: messageController,
+                  controller: _messageController,
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
                     hintText: 'Describe the event or issue:',
@@ -515,7 +512,9 @@ class ContactScreenState extends State<ContactScreen> {
       ),
       bottomNavigationBar: NavigationBarNew(
         selectedIndex: currentIndex,
-        destinations: const [], key: UniqueKey(), referringPage: 1,
+        destinations: const [],
+        key: UniqueKey(),
+        referringPage: 1,
       ),
     );
   }
